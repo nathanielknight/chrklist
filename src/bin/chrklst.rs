@@ -10,18 +10,23 @@ use ratatui::{
 use chrklst::{load, tui, ChecklistError};
 
 fn main() {
-    match choose_command() {
-        Ok(cmd) => match cmd {
-            Command::Help => print_help(),
-            Command::Version => print_version(),
-            Command::Directory => print_directory(),
-            Command::List => print_checklists(),
-            Command::Execute(name) => present_checklist(&name),
-        },
-        Err(err) => {
-            eprintln!("Error: {}", err)
-        }
+    if let Err(err) = inner_main() {
+        eprintln!("Error: {}", err);
+        exit(1);
     }
+    exit(0);
+}
+
+fn inner_main() -> Result<(), ChecklistError> {
+    let cmd = choose_command()?;
+    match cmd {
+        Command::Help => print_help(),
+        Command::Version => print_version(),
+        Command::Directory => print_directory()?,
+        Command::List => print_checklists()?,
+        Command::Execute(name) => present_checklist(&name)?,
+    };
+    Ok(())
 }
 
 fn print_help() {
@@ -55,48 +60,26 @@ fn print_version() {
     println!("{}", env!("CARGO_PKG_VERSION"));
 }
 
-fn print_directory() {
-    match load::checklist_dir() {
-        Ok(path) => {
-            let pathstr = path.to_string_lossy();
-            println!("{}", pathstr);
-        }
-        Err(err) => {
-            eprintln!("Error: {}", err);
-            exit(1);
-        }
-    }
+fn print_directory() -> Result<(), ChecklistError> {
+    let path = load::checklist_dir()?;
+    let pathstr = path.to_string_lossy();
+    println!("{}", pathstr);
+    Ok(())
 }
 
-fn print_checklists() {
-    match load::get_checklists() {
-        Ok(lists) => {
-            if !lists.is_empty() {
-                for list in lists {
-                    println!("{}", list);
-                }
-            } else {
-                eprint!("No checklists");
-            }
+fn print_checklists() -> Result<(), ChecklistError> {
+    let lists = load::get_checklists()?;
+    if !lists.is_empty() {
+        for list in lists {
+            println!("{}", list);
         }
-        Err(err) => {
-            eprintln!("Error: {}", err);
-            exit(2);
-        }
-    }
+    } else {
+        eprint!("No checklists");
+    };
+    Ok(())
 }
 
-fn present_checklist(name: &str) {
-    match present_checklist_app(name) {
-        Ok(()) => {}
-        Err(err) => {
-            eprintln!("Error: {}", err);
-            exit(3);
-        }
-    }
-}
-
-fn present_checklist_app(name: &str) -> Result<(), ChecklistError> {
+fn present_checklist(name: &str) -> Result<(), ChecklistError> {
     let checklist = load::get_checklist(name)?;
     run(&mut ChecklistApp::with_steps(checklist)).map_err(ChecklistError::from)
 }
